@@ -27,7 +27,7 @@ Defined in the backend environment:
 ```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env.local
-npm run docker:up
+docker compose up --build
 ```
 
 Services:
