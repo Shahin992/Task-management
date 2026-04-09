@@ -8,6 +8,7 @@ import api from '../utils/apiClient';
 import BasicInput from '../components/common/BasicInput';
 import SearchIcon from '@mui/icons-material/Search';
 import { buildApiUrl } from '../config/env';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 const mapTask = (task) => ({
   id: task.id,
@@ -31,14 +32,37 @@ const AdminDashboard = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
 
+  const debouncedSearch = useDebouncedValue(search, 400);
+
   useEffect(() => {
-    const fetchTasks = async () => {
+    fetchUsers();
+  }, []);
+
+
+  useEffect(() => {
+
+    fetchTasks();
+  }, [page, rowsPerPage, debouncedSearch]);
+
+   const fetchUsers = async () => {
+      try {
+        const res = await api.get('/users?page=1&limit=100&search=');
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.items);
+        }
+      } catch (e) {
+        console.error('Failed to fetch users', e);
+      }
+    };
+
+     const fetchTasks = async () => {
       setLoading(true);
       try {
         const params = new URLSearchParams({
           page: String(page + 1),
           limit: String(rowsPerPage),
-          search,
+          search: debouncedSearch,
         });
         const res = await api.get(`/tasks?${params.toString()}`);
         if (res.ok) {
@@ -52,22 +76,6 @@ const AdminDashboard = () => {
         setTimeout(() => setLoading(false), 800);
       }
     };
-
-    const fetchUsers = async () => {
-      try {
-        const res = await api.get('/users?page=1&limit=100&search=');
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(data.items);
-        }
-      } catch (e) {
-        console.error('Failed to fetch users', e);
-      }
-    };
-
-    fetchTasks();
-    fetchUsers();
-  }, [page, rowsPerPage, search]);
 
   const handleOpenModal = (task = null) => {
     setSelectedTask(task);
@@ -83,6 +91,7 @@ const AdminDashboard = () => {
     try {
       const method = selectedTask ? 'PATCH' : 'POST';
       const url = buildApiUrl('/tasks');
+      const isEditing = Boolean(selectedTask);
       const payload = selectedTask ? { ...formData, id: selectedTask.id } : formData;
       const res = await fetch(url, {
         method,
@@ -97,12 +106,16 @@ const AdminDashboard = () => {
         throw new Error('Failed to save task');
       }
 
-      const savedTask = await res.json();
+      await res.json();
 
-      if (selectedTask) {
-        setTasks(tasks.map((task) => (task.id === savedTask.id ? mapTask(savedTask) : task)));
+      if (isEditing) {
+        await fetchTasks();
       } else {
-        setTasks([mapTask(savedTask), ...tasks]);
+        if (page !== 0) {
+          setPage(0);
+        } else {
+          await fetchTasks();
+        }
       }
 
       handleCloseModal();
@@ -127,7 +140,7 @@ const AdminDashboard = () => {
     if (!taskToDelete) return;
     const id = taskToDelete.id;
     try {
-      await fetch(buildApiUrl('/tasks'), { 
+      await fetch(buildApiUrl('/tasks'), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -135,8 +148,17 @@ const AdminDashboard = () => {
         body: JSON.stringify({ id }),
         credentials: 'include'
       });
-    } catch(e) {}
-    setTasks(tasks.filter(t => t.id !== id));
+    } catch (e) {}
+    const nextTotal = total - 1;
+    const lastItemOnPage = tasks.length === 1;
+    const shouldGoToPreviousPage = page > 0 && lastItemOnPage && nextTotal <= page * rowsPerPage;
+
+    if (shouldGoToPreviousPage) {
+      setPage((currentPage) => currentPage - 1);
+    } else {
+      await fetchTasks();
+    }
+
     setDeleteModalOpen(false);
     setTaskToDelete(null);
   };
@@ -163,12 +185,12 @@ const AdminDashboard = () => {
             />
           </Box>
         </Box>
-        <Button 
-          variant="contained" 
+        <Button
+          variant="contained"
           disableElevation
           onClick={() => handleOpenModal()}
-          sx={{ 
-            bgcolor: '#3B71CA', 
+          sx={{
+            bgcolor: '#3B71CA',
             textTransform: 'none',
             fontWeight: 600,
             px: 3,
@@ -217,19 +239,19 @@ const AdminDashboard = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      size="small" 
-                      variant="outlined" 
+                    <Button
+                      size="small"
+                      variant="outlined"
                       onClick={() => handleOpenModal(task)}
                       sx={{ textTransform: 'none', mr: 1, borderColor: '#ccc', color: '#333' }}
                     >
                       Edit
                     </Button>
-                    <Button 
-                      size="small" 
-                      variant="outlined" 
-                      color="error" 
-                      sx={{ textTransform: 'none' }} 
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      sx={{ textTransform: 'none' }}
                       onClick={() => handleDeleteClick(task)}
                     >
                       Delete
@@ -254,22 +276,19 @@ const AdminDashboard = () => {
         </TableContainer>
       )}
 
-      <TaskModal 
+      <TaskModal
         open={isModalOpen}
         handleClose={handleCloseModal}
         handleSubmit={handleTaskSubmit}
         initialData={selectedTask}
         users={users}
       />
-
       <ActionModal
         open={deleteModalOpen}
         handleClose={() => setDeleteModalOpen(false)}
-        handleAction={confirmDelete}
-        type="warning"
+        handleConfirm={confirmDelete}
         title="Delete Task"
-        message={`Are you sure you want to delete "${taskToDelete?.title}"? This action cannot be undone.`}
-        actionText="Delete"
+        description="Are you sure you want to delete this task? This action cannot be undone."
       />
     </Box>
   );

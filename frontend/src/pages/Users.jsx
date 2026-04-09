@@ -63,6 +63,7 @@ const Users = () => {
     try {
       const method = selectedUser ? 'PATCH' : 'POST';
       const url = buildApiUrl('/users');
+      const isEditing = Boolean(selectedUser);
       const payload = selectedUser ? { ...formData, id: selectedUser.id } : formData;
 
       const res = await fetch(url, {
@@ -75,7 +76,13 @@ const Users = () => {
       });
 
       if (res.ok) {
-        fetchUsers();
+        if (isEditing) {
+          await fetchUsers();
+        } else if (page !== 0) {
+          setPage(0);
+        } else {
+          await fetchUsers();
+        }
         handleCloseModal();
       } else {
         const err = await res.json();
@@ -103,7 +110,16 @@ const Users = () => {
         credentials: 'include'
       });
       if (res.ok) {
-        fetchUsers();
+        const nextTotal = total - 1;
+        const lastItemOnPage = users.length === 1;
+        const shouldGoToPreviousPage = page > 0 && lastItemOnPage && nextTotal <= page * rowsPerPage;
+
+        if (shouldGoToPreviousPage) {
+          setPage((currentPage) => currentPage - 1);
+        } else {
+          await fetchUsers();
+        }
+
         setDeleteModalOpen(false);
         setUserToDelete(null);
       }
