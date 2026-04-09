@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  email         String     @unique
+  password      String
+  name          String
+  role          Role
+  createdById   String?    @db.Uuid
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  createdBy     User?      @relation("AdminManagedUsers", fields: [createdById], references: [id])
+  managedUsers  User[]     @relation("AdminManagedUsers")
+  auditLogs     AuditLog[]
+  assignedTasks Task[]
+
+  @@index([createdById])
+  @@map("users")
+}
+
+model Task {
+  id             String     @id @default(uuid()) @db.Uuid
+  title          String
+  description    String
+  status         TaskStatus @default(PENDING)
+  assignedUserId String?    @db.Uuid
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  assignedUser   User?      @relation(fields: [assignedUserId], references: [id])
+
+  @@index([assignedUserId])
+  @@index([status])
+  @@map("tasks")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  actorId      String   @db.Uuid
+  actionType   String
+  targetEntity String
+  targetId     String   @db.Uuid
+  summary      Json
+  createdAt    DateTime @default(now())
+  actor        User     @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([targetEntity, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  DONE
+}

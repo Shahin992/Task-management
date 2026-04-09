@@ -1,0 +1,13 @@
+{
+  "name": "task-management-system",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:dev": "docker compose -f docker-compose.dev.yml up --build",
+    "docker:dev:down": "docker compose -f docker-compose.dev.yml down",
+    "backend:docker": "docker compose -f backend/docker-compose.yml up --build",
+    "frontend:docker": "docker compose -f frontend/docker-compose.yml up --build"
+  }
+}
